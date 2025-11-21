@@ -1,11 +1,30 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 class ApiClient {
+  constructor() {
+    this.token = localStorage.getItem('authToken');
+  }
+
+  setToken(token) {
+    this.token = token;
+    if (token) {
+      localStorage.setItem('authToken', token);
+    } else {
+      localStorage.removeItem('authToken');
+    }
+  }
+
+  getToken() {
+    return this.token || localStorage.getItem('authToken');
+  }
+
   async request(endpoint, options = {}) {
     const url = `${API_BASE_URL}${endpoint}`;
+    const token = this.getToken();
     const config = {
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,
@@ -99,6 +118,37 @@ class ApiClient {
       body: JSON.stringify({ title }),
     });
     return result.title;
+  }
+
+  // Authentication
+  async register(username, password, email) {
+    const result = await this.request('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, password, email }),
+    });
+    if (result.token) {
+      this.setToken(result.token);
+    }
+    return result;
+  }
+
+  async login(username, password) {
+    const result = await this.request('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    if (result.token) {
+      this.setToken(result.token);
+    }
+    return result;
+  }
+
+  async getMe() {
+    return this.request('/auth/me');
+  }
+
+  logout() {
+    this.setToken(null);
   }
 }
 

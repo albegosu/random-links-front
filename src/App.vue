@@ -1,5 +1,17 @@
 <template>
-  <div class="app-container">
+  <div v-if="!isAuthenticated" class="auth-wrapper">
+    <Login 
+      v-if="showLogin" 
+      @login-success="handleAuthSuccess"
+      @switch-to-register="showLogin = false"
+    />
+    <Register 
+      v-else 
+      @register-success="handleAuthSuccess"
+      @switch-to-login="showLogin = true"
+    />
+  </div>
+  <div v-else class="app-container">
     <!-- Header with controls -->
     <header class="header">
       <div class="title-container">
@@ -10,6 +22,7 @@
           :title="editMode ? 'Double-click to edit' : ''"
         >
           {{ pageTitle }}
+          <span v-if="editMode" class="edit-icon">✏️</span>
         </h1>
         <input
           v-else
@@ -30,6 +43,9 @@
         </button>
         <button @click="toggleEditMode" class="btn" :class="{ 'btn-active': editMode }">
           <span>✏️</span> {{ editMode ? 'Done Editing' : 'Edit Mode' }}
+        </button>
+        <button @click="handleLogout" class="btn btn-logout" title="Logout">
+          <span>🚪</span> {{ currentUser?.username }}
         </button>
       </div>
     </header>
@@ -136,9 +152,15 @@
 <script>
 import { ref, reactive, onMounted } from 'vue'
 import api from './api.js'
+import Login from './Login.vue'
+import Register from './Register.vue'
 
 export default {
   name: 'App',
+  components: {
+    Login,
+    Register
+  },
   setup() {
     const links = ref([])
     const categories = ref([])
@@ -159,12 +181,56 @@ export default {
     const editingTitle = ref(false)
     const titleInput = ref('')
     const titleInputRef = ref(null)
+    // Start with login form visible (not authenticated)
+    const isAuthenticated = ref(false)
+    const currentUser = ref(null)
+    const showLogin = ref(true)
 
     const linkForm = reactive({
       title: '',
       url: '',
       category: ''
     })
+
+    // Check authentication on mount
+    const checkAuth = async () => {
+      const token = api.getToken()
+      if (!token) {
+        isAuthenticated.value = false
+        return
+      }
+      
+      // If token exists, verify it
+      try {
+        const result = await api.getMe()
+        isAuthenticated.value = true
+        currentUser.value = result.user
+        await loadData()
+      } catch (err) {
+        // Token invalid, clear it
+        console.warn('Token validation failed:', err)
+        api.logout()
+        isAuthenticated.value = false
+        currentUser.value = null
+      }
+    }
+
+    // Handle successful login/register
+    const handleAuthSuccess = async (user) => {
+      isAuthenticated.value = true
+      currentUser.value = user
+      await loadData()
+    }
+
+    // Handle logout
+    const handleLogout = () => {
+      api.logout()
+      isAuthenticated.value = false
+      currentUser.value = null
+      links.value = []
+      categories.value = []
+      pageTitle.value = 'My Links'
+    }
 
     // Load data from API
     const loadData = async () => {
@@ -487,7 +553,7 @@ export default {
     }
 
     onMounted(() => {
-      loadData()
+      checkAuth()
       initializeCategoryColors()
     })
 
@@ -523,7 +589,12 @@ export default {
       titleInputRef,
       startEditingTitle,
       saveTitle,
-      cancelEditingTitle
+      cancelEditingTitle,
+      isAuthenticated,
+      currentUser,
+      showLogin,
+      handleAuthSuccess,
+      handleLogout
     }
   }
 }
