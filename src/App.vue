@@ -36,7 +36,7 @@
 
     <!-- Error message -->
     <div v-if="error" class="error-banner">
-      {{ error }}
+      <strong>Error:</strong> {{ error }}
       <button @click="error = null" class="error-close">×</button>
     </div>
 
@@ -205,8 +205,10 @@ export default {
           }
         }
       } catch (err) {
-        error.value = 'Failed to load data. Please check if the server is running.'
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+        error.value = `Failed to load data. Check: 1) Backend is running, 2) API URL is correct (${apiUrl}), 3) CORS is configured. See console for details.`
         console.error('Error loading data:', err)
+        console.error('API URL:', apiUrl)
         // Fallback to empty state
         links.value = []
         categories.value = []
