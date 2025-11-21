@@ -183,8 +183,8 @@ export default {
         const loadedLinks = await api.getLinks()
         links.value = loadedLinks.map(link => ({
           ...link,
-          x: link.x || 100,
-          y: link.y || 100
+          x: link.x !== undefined && link.x !== null ? link.x : 100,
+          y: link.y !== undefined && link.y !== null ? link.y : 100
         }))
 
         // Load categories
@@ -258,11 +258,14 @@ export default {
     const saveLink = async () => {
       try {
         if (editingLink.value) {
-          // Update existing link
+          // Update existing link - preserve position
+          const existingLink = links.value.find(l => l.id === editingLink.value.id)
           const updatedLink = await api.updateLink(editingLink.value.id, {
             title: linkForm.title,
             url: linkForm.url,
-            category: linkForm.category || null
+            category: linkForm.category || null,
+            x: existingLink?.x !== undefined ? existingLink.x : 100,
+            y: existingLink?.y !== undefined ? existingLink.y : 100
           })
           const index = links.value.findIndex(l => l.id === editingLink.value.id)
           if (index !== -1) {
