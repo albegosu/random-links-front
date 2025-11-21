@@ -149,6 +149,9 @@ export default {
     const editingLink = ref(null)
     const draggingId = ref(null)
     const dragOffset = ref({ x: 0, y: 0 })
+    const hasDragged = ref(false)
+    const dragStartPos = ref({ x: 0, y: 0 })
+    const justFinishedDrag = ref(false)
     const newCategory = ref('')
     const loading = ref(false)
     const error = ref(null)
@@ -300,7 +303,14 @@ export default {
       }
     }
 
-    const handleLinkClick = (link) => {
+    const handleLinkClick = (link, event) => {
+      // Don't open link if we just finished dragging
+      if (justFinishedDrag.value) {
+        justFinishedDrag.value = false
+        return
+      }
+      
+      // Only open link if not in edit mode
       if (!editMode.value) {
         window.open(link.url, '_blank')
       }
@@ -314,9 +324,11 @@ export default {
 
     // Drag and drop functionality
     const startDrag = (event, linkId) => {
-      if (!editMode.value) return
-      
+      // Allow dragging in both edit mode and normal mode
       draggingId.value = linkId
+      hasDragged.value = false
+      dragStartPos.value = { x: event.clientX, y: event.clientY }
+      
       const link = links.value.find(l => l.id === linkId)
       dragOffset.value = {
         x: event.clientX - link.x,
@@ -330,6 +342,16 @@ export default {
     const onDrag = (event) => {
       if (!draggingId.value) return
       
+      // Check if mouse has moved significantly (more than 5px) to consider it a drag
+      const moveDistance = Math.sqrt(
+        Math.pow(event.clientX - dragStartPos.value.x, 2) + 
+        Math.pow(event.clientY - dragStartPos.value.y, 2)
+      )
+      
+      if (moveDistance > 5) {
+        hasDragged.value = true
+      }
+      
       const link = links.value.find(l => l.id === draggingId.value)
       if (link) {
         link.x = event.clientX - dragOffset.value.x
@@ -341,12 +363,18 @@ export default {
       }
     }
 
-    const stopDrag = async () => {
-      if (draggingId.value) {
+    const stopDrag = async (event) => {
+      const wasDragging = draggingId.value !== null
+      const didDrag = hasDragged.value
+      
+      if (wasDragging) {
         const link = links.value.find(l => l.id === draggingId.value)
-        if (link) {
+        if (link && didDrag) {
+          // Mark that we just finished a drag to prevent click from opening link
+          justFinishedDrag.value = true
+          
+          // Save position to API
           try {
-            // Save position to API
             await api.updateLink(link.id, {
               x: link.x,
               y: link.y
@@ -354,9 +382,17 @@ export default {
           } catch (err) {
             console.error('Error saving link position:', err)
           }
+          
+          // Reset flag after click event has had time to fire
+          setTimeout(() => {
+            justFinishedDrag.value = false
+          }, 200)
         }
+        
+        draggingId.value = null
+        hasDragged.value = false
       }
-      draggingId.value = null
+      
       document.removeEventListener('mousemove', onDrag)
       document.removeEventListener('mouseup', stopDrag)
     }
